@@ -11,6 +11,14 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 from sklearn.linear_model import LogisticRegression
 
+# Lets the normal Run button work: if the file was started with plain
+# Python, restart it the correct way using Streamlit.
+if not st.runtime.exists():
+    import subprocess
+    import sys
+    subprocess.run([sys.executable, "-m", "streamlit", "run", __file__])
+    sys.exit()
+
 DATA_FILE = "medication_data.json"
 TIMEZONE = "Asia/Manila"   # change this if you are in a different time zone
 MIN_RECORDS = 10           # records needed before the model can learn
@@ -208,6 +216,38 @@ def flash(message):
     st.session_state["flash"] = message
 
 
+def play_alert():
+    """Beep three times and vibrate the phone (vibration works on Android
+    browsers only). The browser only allows this after the user has tapped
+    the page at least once."""
+    sound_and_vibration = """
+    <script>
+      try { navigator.vibrate([400, 200, 400, 200, 400]); } catch (e) {}
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new Ctx();
+        if (ctx.state === "suspended") { ctx.resume(); }
+        [0, 0.5, 1.0].forEach(function (start) {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.frequency.value = 880;
+          gain.gain.value = 0.3;
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + start);
+          osc.stop(ctx.currentTime + start + 0.3);
+        });
+      } catch (e) {}
+    </script>
+    """
+
+    if hasattr(st, "iframe"):          # newer Streamlit
+        st.iframe(sound_and_vibration, height=1)
+    else:                              # older Streamlit
+        import streamlit.components.v1 as components
+        components.html(sound_and_vibration, height=0)
+
+
 def scheduled_medications():
     """Medications that already have a time."""
     return [m for m in data["medications"] if m["time"]]
@@ -250,6 +290,8 @@ def show_reminders():
     current = now()
 
     st.caption(f"Current time: {current.strftime('%I:%M %p')}")
+    st.caption("Tip: tap the page once and keep this screen open, "
+               "so your phone allows the sound and vibration.")
 
     meds = [m for m in fresh["medications"] if m["time"]]
     if not meds:
@@ -272,6 +314,7 @@ def show_reminders():
             key = f"{med['name']}-{current.strftime('%Y-%m-%d')}"
             if key not in notified:       # pop up only once per day
                 st.toast(f"Time to take {med['name']}!", icon="🔔")
+                play_alert()
                 notified.add(key)
         else:
             text = f"⏰ Upcoming: {label}"
