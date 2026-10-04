@@ -199,6 +199,19 @@ def predict_miss_risk(model, time_24):
     return risk, target
 
 
+def risk_by_hour(model):
+    """Predicted chance (0-100) of missing a dose at every hour of the day,
+    for weekdays and for weekends. Used to draw the chart."""
+    rows = []
+    for hour in range(24):
+        weekday = model.predict_proba([[hour, 0]])[0][1] * 100
+        weekend = model.predict_proba([[hour, 1]])[0][1] * 100
+        rows.append({"Hour": hour,
+                     "Weekday": round(weekday, 1),
+                     "Weekend": round(weekend, 1)})
+    return rows
+
+
 # ===============================================================
 # PART 2: THE SCREEN (Streamlit app)
 # ===============================================================
@@ -431,6 +444,18 @@ with tab_predict:
             st.warning("Likely to miss: consider an extra reminder.")
         else:
             st.success("Unlikely to miss: a normal reminder is enough.")
+
+        st.subheader("Chance of missing a dose, by hour")
+        st.line_chart(
+            risk_by_hour(model),
+            x="Hour",
+            y=["Weekday", "Weekend"],
+            x_label="Hour of the day (0 = 12 AM, 12 = 12 PM, 23 = 11 PM)",
+            y_label="Chance of missing (%)",
+        )
+        st.caption("Each line shows what the model learned from your history. "
+                   "A higher line means doses at that hour are more "
+                   "likely to be missed.")
 
     with st.expander("How does this work?"):
         st.write(
